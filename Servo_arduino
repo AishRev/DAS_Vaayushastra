@@ -1,0 +1,19 @@
+#include <Servo.h>
+
+Servo myservo;
+int servoPin = 9;  // Connect the servo to digital pin 9
+int angle = 0;   // Initial angle for the servo
+
+void setup() {
+  myservo.attach(servoPin);
+  myservo.write(angle);
+  Serial.begin(9600);
+}
+
+void loop() {
+  if (Serial.available() > 0) {
+    angle = Serial.parseInt();
+    myservo.write(angle);
+    Serial.println(angle);
+  }      
+}
