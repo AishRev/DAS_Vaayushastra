@@ -1,0 +1,71 @@
+//Mert Arduino and Tech YouTube Channel -- https://goo.gl/ivcZhW
+
+//Add the necessary libraries
+//You can find all the necessary library links in the video description
+#include <SPI.h>      //SPI library for communicate with the nRF24L01+
+#include "RF24.h"     //The main library of the nRF24L01+
+#include <nRF24L01.h>
+#include <Servo.h>
+#define CE_PIN 7
+#define CSN_PIN 8
+//Define packet for the direction (X axis and Y axis)
+float data[8];
+RF24 radio(CE_PIN, CSN_PIN);
+const byte address[6] = "00001";
+//Create a pipe addresses for the communicate 
+const uint64_t pipe = 0xE8E8F0F0E1LL;     //common adress which the receiver will send to (acts like a pipe)
+Servo myservo;
+int servoPin = 9;  // Connect the servo to digital pin 9
+int angle =   0;   // Initial angle for the servo
+
+void setup(){
+ 
+  radio.begin();                          //Start the nRF24 communicate            
+  radio.openReadingPipe(1, pipe);         //Sets the address of the transmitter to which the program will receive data.
+  radio.openWritingPipe(address); // 00002  
+  radio.startListening();  //Start listening
+  myservo.attach(servoPin);
+  myservo.write(angle);
+  Serial.begin(9600); 
+  }
+  
+void loop(){
+  if (radio.available()){                 //if transmitter is sending data
+    radio.read(data, sizeof(data));   //read the data , size of data
+    Serial.print("ID: ");
+    Serial.print(data[0]);
+    Serial.print(",");
+//    Serial.print("ypr: ");
+    Serial.print(data[1]);               //print the data (roll) so that python can pick it up y
+    Serial.print(",");                 //this comma will act out as a divider for axises  a
+    Serial.print(data[2]);   
+    Serial.print(",");                  //this comma will act out as a divider for axises  a
+     Serial.print(data[3]);
+    Serial.print(",");
+    Serial.print(data[4]);
+//    Serial.print(F("*C"));  
+    Serial.print(",");
+    Serial.print(data[5]);
+//    Serial.print(F("hPa"));
+    Serial.print(",");
+    Serial.print(data[6]);
+//    Serial.print(F("m")); 
+    Serial.print(",");
+    Serial.print(data[7]);
+//    Serial.print("m/s");
+    Serial.print(",");
+  
+    Serial.print("Size: ");
+    Serial.println();
+//    Serial.println("-----------------------------------------------------------------------------------------------"); 
+    
+    }
+   if (Serial.available() > 0) {
+    angle = Serial.parseInt();
+  }
+  if(angle!=0){
+    if ( radio.available()) {
+   radio.write(&angle, sizeof(angle));
+  }
+}
+}
