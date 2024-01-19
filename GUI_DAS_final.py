@@ -1,0 +1,761 @@
+# Base Station for the year 2023
+#
+# If you do not have an Arduino Board to engage the COM port,
+# then comment out all the lines related to Serial Library, and
+# the raw GUI will appear.
+
+# Some points to notice:
+# 1. Microcontroller board.
+# 2. Digital IO Pins used, if any.
+# 3. Having a text file 'myfile.txt', for data logging.
+
+import sys
+import math
+import serial
+import time
+import os
+import datetime, threading
+from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+
+global com_port
+com_port = 'COM6'
+global wireconnect
+wireconnect=0
+global ser
+ser = serial.Serial(com_port, baudrate=115200, timeout=10,
+                    parity=serial.PARITY_NONE,
+                    stopbits=serial.STOPBITS_ONE,
+                    bytesize=serial.EIGHTBITS
+                    )
+class NRF51GUI(QWidget):
+    def __init__(self):
+        super(NRF51GUI,self).__init__()
+        self.serial = serial.Serial("com_port=6", 115200)
+    def print_data(self):
+        packet = self.serial.readline().decode()
+        # print(type(packet))
+        # print(packet)
+        data1,data2,data3,data4,data5,data6,data7 = packet.split(", ")
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super(MainWindow,self).__init__()
+
+        self.dropangle = 0
+        # # arduino board for managing servo
+        # self.board = Arduino('COM5')
+        # self.board.digital[10].mode = SERVO
+
+        # array for rotation of images
+        self.angle = []
+        self.angle.append(0)
+        # counter
+        self.count = 0
+        # creating flag
+        self.flag = False
+        # creating a timer object
+        self.timer = QTimer(self)
+        # adding action to timer
+        self.timer.timeout.connect(self.showTime)
+        # update the timer every tenth second
+        self.timer.start(100)
+
+        self.angle_of_rotation1 = 0
+        self.angle_of_rotation2 = 0
+        self.angle_of_rotation3 = 0
+
+        self.timeout = 0
+        self.check_serial_event()
+
+        self.setGeometry(0, 0, 1958, 1032)
+        self.setWindowTitle("TEAM VAAYUSHASTRA")
+        self.setStyleSheet("\n"
+                           "background-color:black;\n"
+                           "border:20px solid yellow;")
+        self.setWindowIcon(QIcon("resize-vaayuindia1_150x120_-removebg.png"))
+        print("Hello")
+
+        #progress ring for roll, pitch, yaw
+        self.progress_ring_1 = QLabel(self)
+        self.pro_pixmap_1 = QPixmap("Speedometer_5-removebg-preview.png")
+        self.progress_ring_1.setPixmap(self.pro_pixmap_1)
+        self.progress_ring_1.setGeometry(150, 57, 388, 416)
+        self.progress_ring_1.setStyleSheet("background-color:transparent;\n"
+                                           "border:1px solid transparent;\n")
+
+        self.progress_ring_2 = QLabel(self)
+        self.pro_pixmap_2 = QPixmap("Speedometer_6-removebg-preview.png")
+        self.progress_ring_2.setPixmap(self.pro_pixmap_2)
+        self.progress_ring_2.setGeometry(700, 57, 444, 392)
+        self.progress_ring_2.setStyleSheet("background-color:transparent;\n"
+                                           "border:1px solid transparent;\n")
+
+        self.progress_ring_3 = QLabel(self)
+        self.pro_pixmap_3 = QPixmap("Speedometer_4-removebg-preview.png")
+        self.progress_ring_3.setPixmap(self.pro_pixmap_3)
+        self.progress_ring_3.setGeometry(1250, 59, 387, 412)
+        self.progress_ring_3.setStyleSheet("background-color:transparent;\n"
+                                           "border:1px solid transparent;\n")
+
+
+        #analog meter
+        self.roll_image = QLabel(self)
+        self.roll_image_pixmap = QPixmap("roll_resized.png")
+        self.roll_image.setPixmap(self.roll_image_pixmap)
+        self.roll_image.setGeometry(147, 74, 377, 377)
+        self.roll_image.setStyleSheet("background-color:transparent;\n"
+                                      "border:1px solid transparent;\n")
+        self.roll_image.setAlignment(Qt.AlignCenter)
+        #opacity to a label
+        # self.opacity = QGraphicsOpacityEffect()
+        # self.opacity.setOpacity(1)
+        # self.roll_image.setGraphicsEffect(self.opacity)
+        # not needed since transparency can be set through setStyleSheet
+
+        self.yaw_image = QLabel(self)
+        self.yaw_image_pixmap = QPixmap("yaw_resized.png")
+        self.yaw_image.setPixmap(self.yaw_image_pixmap)
+        self.yaw_image.setGeometry(813, 144, 230, 230)
+        self.yaw_image.setStyleSheet("background-color:transparent;\n"
+                                      "border:1px solid transparent;\n")
+        self.yaw_image.setAlignment(Qt.AlignCenter)
+
+        self.pitch_image = QLabel(self)
+        self.pitch_image_pixmap = QPixmap("pitch1_resized.png")
+        self.pitch_image.setPixmap(self.pitch_image_pixmap)
+        self.pitch_image.setGeometry(1270, 62, 377, 377)
+        self.pitch_image.setStyleSheet("background-color:transparent;\n"
+                                       "border:1px solid transparent;\n")
+        self.pitch_image.setAlignment(Qt.AlignCenter)
+
+
+        self.Roll = QLabel(self)
+        self.Roll_pix = QPixmap("rollll.png")
+        self.Roll.setPixmap(self.Roll_pix)
+        self.Roll.setGeometry(305, 30, 60, 23)
+        self.Roll.setStyleSheet("border: 1px solid transparent")
+
+        self.Yaw = QLabel(self)
+        self.Yaw_pix = QPixmap("yawww.png")
+        self.Yaw.setPixmap(self.Yaw_pix)
+        self.Yaw.setGeometry(895, 30, 60, 27)
+        self.Yaw.setStyleSheet("border: 1px solid transparent")
+
+        self.Pitch = QLabel(self)
+        self.Pitch_pix = QPixmap("pitchhhh.png")
+        self.Pitch.setPixmap(self.Pitch_pix)
+        self.Pitch.setGeometry(1415, 30, 71, 23)
+        self.Pitch.setStyleSheet("border: 1px solid transparent")
+
+
+        #all buttons and their attributes
+        self.Roll_text = QLabel(self)
+        self.Roll_text.setGeometry(75, 507, 181, 71)
+        self.Roll_text.setText("ROLL")
+        self.Roll_text.setFont(QFont("Helvetica", 18))
+        self.Roll_text.setStyleSheet("background-color:black;\n"
+                                     "border:1px solid black;\n"
+                                     "color:white;\n"
+                                     "font-weight:bold;\n"
+                                     "font-size:30px;\n")
+        self.Roll_text.setObjectName("Roll_text")
+        self.Roll_text.setAlignment(Qt.AlignCenter)
+
+        self.Roll_data = QLabel(self)
+        self.Roll_data.setGeometry(250, 507, 181, 71)
+        self.Roll_data.setStyleSheet("background-color:yellow;\n"
+                                     "border-radius:35px;\n"
+                                     "border:4px solid rgba(5,102,144,255);\n"
+                                     "font-size:30px;\n"
+                                     "font-weight:bold;\n")
+
+        # self.Roll_data.setText(0.0)
+        self.Roll_data.setAlignment(Qt.AlignCenter)
+
+
+        # self.Roll_data.setText.connect()
+
+
+        self.Yaw_text = QLabel(self)
+        self.Yaw_text.setGeometry(75, 637, 181, 71)
+        self.Yaw_text.setText("YAW")
+        self.Yaw_text.setFont(QFont("Helvetica", 18))
+        self.Yaw_text.setStyleSheet("background-color:black;\n"
+                                    "border:1px solid black;\n"
+                                    "color:white;\n"
+                                    "font-weight:bold;\n"
+                                    "font-size:30px;\n")
+        self.Yaw_text.setObjectName("Roll_text")
+        self.Yaw_text.setAlignment(Qt.AlignCenter)
+
+        self.Yaw_data = QLabel(self)
+        self.Yaw_data.setGeometry(250, 637, 181, 71)
+        self.Yaw_data.setStyleSheet("background-color:yellow;\n"
+                                    "border-radius:35px;\n"
+                                    "border:4px solid rgba(5,102,144,255);\n"
+                                    "font-size:30px;\n"
+                                    "font-weight:bold;\n")
+        # self.Yaw_data.setText(li[2][3:])
+        self.Yaw_data.setAlignment(Qt.AlignCenter)
+        # self.check_serial_event.append()
+        # self.Yaw_data.setText.connect(self.check_serial_event)
+
+
+        self.Pitch_text = QLabel(self)
+        self.Pitch_text.setGeometry(75, 767, 181, 71)
+        self.Pitch_text.setText("PITCH")
+        self.Pitch_text.setFont(QFont("Helvetica", 18))
+        self.Pitch_text.setStyleSheet("background-color:black;\n"
+                                      "border:1px solid black;\n"
+                                      "color:white;\n"
+                                      "font-weight:bold;\n"
+                                      "font-size:30px;\n")
+        self.Pitch_text.setObjectName("Roll_text")
+        self.Pitch_text.setAlignment(Qt.AlignCenter)
+
+        self.Pitch_data = QLabel(self)
+        self.Pitch_data.setGeometry(250, 767, 181, 71)
+        self.Pitch_data.setStyleSheet("background-color:yellow;\n"
+                                      "border-radius:35px;\n"
+                                      "border:4px solid rgba(5,102,144,255);\n"
+                                      "font-size:30px;\n"
+                                      "font-weight:bold;\n")
+        # self.Pitch_data.setText(li[1][3:])
+        self.Pitch_data.setAlignment(Qt.AlignCenter)
+        # self.check_serial_event.append()
+        # self.Pitch_data.setText.connect(self.check_serial_event)
+
+
+        #AirSpeed
+        self.Air_Speed = QLabel(self)
+        self.Air_Speed.setGeometry(550, 507, 181, 71)
+        self.Air_Speed.setText("AIR SPEED")
+        self.Air_Speed.setObjectName("Timer_text")
+        self.Air_Speed.setStyleSheet("background-color:black;\n"
+                                     "border:1px solid black;\n"
+                                     "color:white;\n"
+                                     "font-weight:bold;\n"
+                                     "font-size:30px;\n")
+        self.Air_Speed.setAlignment(Qt.AlignCenter)
+
+        self.Air = QLabel(self)
+        self.Air.setGeometry(765, 507, 181, 71)
+        self.Air.setStyleSheet("background-color:yellow;\n"
+                               "border-radius:35px;\n"
+                               "border:4px solid rgba(5,102,144,255);\n"
+                               "font-size:30px;\n"
+                               "font-weight:bold;\n")
+        self.Air.setText("0.0 ft/s")
+        self.Air.setAlignment(Qt.AlignCenter)
+
+        self.ms = QLabel(self)
+        self.ms.setGeometry(945, 515, 81, 51)
+        self.ms.setStyleSheet("background-color:black;\n"
+                                      "border:1px solid black;\n"
+                                      "color:white;\n"
+                                      "font-weight:bold;\n"
+                                      "font-size:24px;\n")
+        self.ms.setText("ft/s")
+        self.ms.setAlignment(Qt.AlignHCenter)
+        self.ms.setAlignment(Qt.AlignVCenter)
+
+
+
+
+         #Drop
+        self.Drop = QPushButton(self)
+
+
+        self.Drop.setGeometry(1125, 505, 130, 130)
+        self.Drop.setStyleSheet("QPushButton"
+                                "{"
+                                "background-color:grey;\n"
+                                "border-radius:75px;\n"
+                                "border:4px solid rgb(9,9,9);\n"
+                                "font-weight:bold;\n"
+                                "font-size:20px;\n"
+                                "color:white;\n"
+                                "}"
+                                "QPushButton::pressed"
+                                "{"
+                                "background-color:Green;\n"
+                                "color:yellow;\n"
+                                "}")
+        self.Drop.setText("DISABLED")
+
+        if wireconnect == 1:
+            self.Drop.setEnabled(True)
+            self.Drop.setStyleSheet("QPushButton"
+                                "{"
+                                "background-color:Red;\n"
+                                "border-radius:75px;\n"
+                                "border:4px solid rgb(130, 9, 9);\n"
+                                "font-weight:bold;\n"
+                                "font-size:20px;\n"
+                                "color:white;\n"
+                                "}"
+                                )
+            self.Drop.setText("READY")
+
+
+        else:
+            self.Drop.setEnabled(False)
+
+        self.Drop.clicked.connect(self.on_click)
+        print('Drop Done')
+        #Calibrate
+
+        self.Calibrate = QPushButton(self)
+        self.Calibrate.setGeometry(1100, 700, 181, 71)
+        self.Calibrate.setStyleSheet("background-color:rgb(250, 235, 215);\n"
+                                "border-radius:35px;\n"
+                                "border:4px solid rgb(139, 69, 19);\n"
+                                "font-weight:bold;\n"
+                                "font-size:26px;\n")
+        self.Calibrate.setText("CALIBRATE")
+
+
+        #Pa_Altitude
+        self.pada1_text = QLabel(self)
+        self.pada1_text.setGeometry(1490, 460, 321, 51)
+        self.pada1_text.setStyleSheet("background-color:black;\n"
+                                     "border:1px solid black;\n"
+                                     "color:white;\n"
+                                     "font-weight:bold;\n"
+                                     "font-size:24px;\n")
+        self.pada1_text.setText("PA ALTITUDE")
+        self.pada1_text.setAlignment(Qt.AlignHCenter)
+        self.pada1_text.setAlignment(Qt.AlignVCenter)
+
+        self.ms = QLabel(self)
+        self.ms.setGeometry(1820, 540, 71, 101)
+        self.ms.setStyleSheet("background-color:black;\n"
+                              "border:1px solid black;\n"
+                              "color:white;\n"
+                              "font-weight:bold;\n"
+                              "font-size:60px;\n")
+        self.ms.setText("ft")
+        self.ms.setAlignment(Qt.AlignHCenter)
+        self.ms.setAlignment(Qt.AlignVCenter)
+
+        self.pada1_altitude = QLabel(self)
+        self.pada1_altitude.setGeometry(1315, 497, 521, 200)
+        self.pada1_altitude.setStyleSheet("background-color:rgb(245, 245, 220);\n"
+                                         "border-radius:50px;\n"
+                                         "border:4px rgb(139, 69, 19);\n"
+                                         "font-size:210px;\n")
+        self.pada1_altitude.setText("0 ft")
+        # self.pada_altitude.setWordWrap(True)
+        self.pada1_altitude.setAlignment(Qt.AlignCenter)
+
+        # Pada_Altitude
+        self.pada2_text = QLabel(self)
+        self.pada2_text.setGeometry(1405, 710, 341, 51)
+        self.pada2_text.setStyleSheet("background-color:black;\n"
+                                     "border:1px solid black;\n"
+                                     "color:white;\n"
+                                     "font-weight:bold;\n"
+                                     "font-size:24px;\n")
+        self.pada2_text.setText("PADA DROPPING ALTITUDE")
+        self.pada2_text.setAlignment(Qt.AlignCenter)
+
+        self.ms = QLabel(self)
+        self.ms.setGeometry(1820, 800, 71, 101)
+        self.ms.setStyleSheet("background-color:black;\n"
+                              "border:1px solid black;\n"
+                              "color:white;\n"
+                              "font-weight:bold;\n"
+                              "font-size:60px;\n")
+        self.ms.setText("ft")
+        self.ms.setAlignment(Qt.AlignHCenter)
+        self.ms.setAlignment(Qt.AlignVCenter)
+
+        self.pada2_altitude = QLabel(self)
+        self.pada2_altitude.setGeometry(1315, 747, 521, 200)
+        self.pada2_altitude.setStyleSheet("background-color:rgb(245, 245, 220);\n"
+                                         "border-radius:50px;\n"
+                                         "border:4px rgb(139, 69, 19);\n"
+                                         "font-size:210px;\n")
+        self.pada2_altitude.setText("0 ft")
+        # self.pada2_altitude.setWordWrap(True)
+        self.pada2_altitude.setAlignment(Qt.AlignCenter)
+
+
+        #logo
+        self.logo = QLabel(self)
+        self.logo_pix = QPixmap("logo.jpg")
+        self.logo.setPixmap(self.logo_pix)
+        self.logo.setGeometry(900, 837, 150, 120)
+        self.logo.setStyleSheet("background-color:black;\n"
+                                "border:1px solid black;\n")
+
+
+        #i-button
+        self.i_button = QPushButton(self)
+        self.i_button.move(1860, 20)
+        self.i_button.resize(40, 40)
+        self.i_button.setText("i")
+        self.i_button.setStyleSheet("QPushButton"
+                                   "{"
+                                   "background-color:black;\n"
+                                   "border:4px solid white;\n"
+                                   "border-radius:20px;\n"
+                                   "font-weight:bold;\n"
+                                   "font-size:24px;\n"
+                                   "color:white"
+                                   "}"
+                                   "QPushButton::pressed"
+                                   "{"
+                                   "background-color:yellow;\n"
+                                   "}")
+        self.i_button.clicked.connect(self.text)
+
+
+        #timer
+        self.Timer_text = QLabel(self)
+        self.Timer_text.setGeometry(550, 630, 181, 71)
+        self.Timer_text.setText("TIMER")
+        self.Timer_text.setObjectName("Timer_text")
+        self.Timer_text.setStyleSheet("background-color:black;\n"
+                                      "border:1px solid black;\n"
+                                      "color:white;\n"
+                                      "font-weight:bold;\n"
+                                      "font-size:30px;\n")
+        self.Timer_text.setAlignment(Qt.AlignCenter)
+
+        self.Timer_data = QLabel(self)
+        self.Timer_data.setGeometry(765, 630, 181, 71)
+        self.Timer_data.setStyleSheet("background-color:yellow;\n"
+                                      "border-radius:35px;\n"
+                                      "border:4px solid rgba(5,102,144,255);\n"
+                                      "font-weight:bold;\n"
+                                      "font-size:30px;\n")
+        self.Timer_data.setText("0.0")
+        self.Timer_data.setAlignment(Qt.AlignCenter)
+
+        self.Start = QPushButton(self)
+        self.Start.setGeometry(550, 750, 151, 51)
+        self.Start.setStyleSheet("QPushButton"
+                                 "{"
+                                 "background-color:white;\n"
+                                 "border-radius:24px;\n"
+                                 "border:2px solid rgb(255, 255, 255);\n"
+                                 "font-weight:bold;\n"
+                                 "font-size:24px;\n"
+                                 "}"
+                                 "QPushButton::hover"
+                                 "{"
+                                 "background-color:rgb(255,248,220)"
+                                 "}"
+                                 "QPushButton::pressed"
+                                 "{"
+                                 "background-color:red"
+                                 "}")
+        self.Start.setText("START")
+        self.Start.clicked.connect(self.st_art)
+
+        self.Pause = QPushButton(self)
+        self.Pause.setGeometry(725, 750, 151, 51)
+        self.Pause.setStyleSheet("QPushButton"
+                                 "{"
+                                 "background-color:white;\n"
+                                 "border-radius:24px;\n"
+                                 "border:2px solid rgb(255, 255, 255);\n"
+                                 "font-weight:bold;\n"
+                                 "font-size:24px;\n"
+                                 "}"
+                                 "QPushButton::hover"
+                                 "{"
+                                 "background-color:rgb(255,248,220)"
+                                 "}"
+                                 "QPushButton::pressed"
+                                 "{"
+                                 "background-color:red"
+                                 "}")
+        self.Pause.setText("PAUSE")
+        self.Pause.clicked.connect(self.pa_use)
+
+        self.Reset = QPushButton(self)
+        self.Reset.setGeometry(900, 750, 151, 51)
+        self.Reset.setStyleSheet("QPushButton"
+                                 "{"
+                                 "background-color:white;\n"
+                                 "border-radius:24px;\n"
+                                 "border:2px solid rgb(255, 255, 255);\n"
+                                 "font-weight:bold;\n"
+                                 "font-size:24px;\n"
+                                 "}"
+                                 "QPushButton::hover"
+                                 "{"
+                                 "background-color:rgb(255,248,220)"
+                                 "}"
+                                 "QPushButton::pressed"
+                                 "{"
+                                 "background-color:red"
+                                 "}")
+        self.Reset.setText("RESET")
+        self.Reset.clicked.connect(self.re_set)
+
+    def showTime(self):
+        # checking if flag is true
+        if self.flag:
+            # incrementing the counter
+            self.count += 1
+
+        # getting text from count
+        text = str(self.count/10) + " s"
+        # showing text
+        self.Timer_data.setText(str(text))
+
+    def st_art(self):
+        # making flag to true
+        self.flag = True
+
+    def pa_use(self):
+        # making flag to False
+        self.flag = False
+
+    def re_set(self):
+        # making flag to false
+        self.flag = False
+        # resetting the count
+        self.count = 0
+        # setting text to label
+        self.Timer_data.setText(str(self.Timer_data.text()))
+
+
+    def text(self):
+        offset1 = self.angle_of_rotation1
+        offset2 = self.angle_of_rotation2
+        offset3 = self.angle_of_rotation3
+
+        # for 1st image
+        if (self.Roll_data.text())[1:].isdigit():
+            self.angle_of_rotation1 = int(self.Roll_data.text())
+
+        if int(self.angle_of_rotation1) >= 0:
+            self.transform1 = QTransform().rotate(self.angle_of_rotation1 - offset1)
+        else:
+            self.angle_of_rotation1 = 360 - abs(int(self.angle_of_rotation1))
+            self.transform1 = QTransform().rotate(self.angle_of_rotation1 - offset1)
+
+        self.roll_image_pixmap = self.roll_image_pixmap.transformed(self.transform1, Qt.SmoothTransformation)
+        self.roll_image.setPixmap(self.roll_image_pixmap)
+
+        # for 2nd image
+        if (self.Yaw_data.text())[1:].isdigit():
+            self.angle_of_rotation2 = int(math.ceil(float(self.Yaw_data.text())))
+            j = str(self.angle_of_rotation2)
+        if int(self.angle_of_rotation2) >= 0:
+            self.transform2 = QTransform().rotate(self.angle_of_rotation2 - offset2)
+        else:
+            self.angle_of_rotation2 = 360 - abs(int(self.angle_of_rotation2))
+            self.transform2 = QTransform().rotate(self.angle_of_rotation2 - offset2)
+            print(self.angle_of_rotation2)
+
+        self.yaw_image_pixmap = self.yaw_image_pixmap.transformed(self.transform2, Qt.SmoothTransformation)
+        self.yaw_image.setPixmap(self.yaw_image_pixmap)
+
+        # for 3rd image
+        if (self.Pitch_data.text())[1:].isdigit():
+            self.angle_of_rotation3 = int(self.Pitch_data.text())
+
+        if int(self.angle_of_rotation3) >= 0:
+            self.transform3 = QTransform().rotate(self.angle_of_rotation3 - offset3)
+        else:
+            self.angle_of_rotation3 = 360 - abs(int(self.angle_of_rotation3))
+            self.transform3 = QTransform().rotate(self.angle_of_rotation3 - offset3)
+
+        self.pitch_image_pixmap = self.pitch_image_pixmap.transformed(self.transform3, Qt.SmoothTransformation)
+        self.pitch_image.setPixmap(self.pitch_image_pixmap)
+
+        time.sleep(1)
+
+        self.roll_image.setPixmap(self.roll_image_pixmap)
+        self.i_button.animateClick()
+        self.roll_image.setAlignment(Qt.AlignCenter)
+
+
+    #function for drop
+    def on_click(self):
+        command = 'DROP'
+        # if self.pada2_altitude.text()<= 0.0:
+        print("Bi")
+        # self.Drop = QPushButton(self)
+        print("Oi")
+        self.Drop.setGeometry(1125, 505, 130, 130)
+        print("bruh")
+        self.Drop.setStyleSheet("QPushButton"
+                                "{"
+                                "background-color:Green;\n"
+                                "border-radius:75px;\n"
+                                "border:4px solid rgb(130, 9, 9);\n"
+                                "font-weight:bold;\n"
+                                "font-size:20px;\n"
+                                "color:white;\n"
+                                "}"
+                                )
+        print("0",self.dropangle)
+        if (self.dropangle == 0):
+            self.dropangle = 180
+            print("1",self.dropangle)
+            self.rotate_servo_180()
+            print("2",self.dropangle)
+        else:
+            print("dont touch me dont touch me dont touch me")
+        self.Drop.setText("Drop")
+        print('Rotate Hogaya')
+        # ser.write(b"180")
+
+    def rotate_servo(self, angle):
+        global  ser
+        print('Rotate Angle:', angle)
+        # print(ser)
+        # print("Self Ser : ",self.ser)
+        # try:
+        #     print('Rotate Angle:', angle)
+        # str_angle = str(angle)
+        # encoded_string = str_.encode('ascii', 'utf-8')
+        # ser.write(str(angle).encode('utf-8'))
+        ser.write(str(angle).encode('utf-8'))
+        print('!!! Done !!!')
+
+    def rotate_servo_180(self):
+        print("Inside Rotate Servo 180 Function")
+        self.rotate_servo(180)
+        print('Return Aagaya')
+
+
+    # def rotate_servo_180(self):
+    #     self.rotate_servo(180)
+        # else:
+        #     self.Drop.setText("Disabled")
+
+
+
+
+
+
+
+
+        self.Start.animateClick()
+        try:
+            ser.write(bytes(b'aaa'))
+            ser.write(str('b\x00').encode('utf-8'))
+            ser.write(str('b\x00').encode('utf-8'))
+            ser.write(str('b\x00').encode('utf-8'))
+            ser.write(str('b\x00').encode('utf-8'))
+            ser.write(str('b\x00').encode('utf-8'))
+            ser.write(bytes('69'))
+            ser.write(bytes('69'))
+            ser.write(bytes('114'))
+            ser.write(bytes('114'))
+            ser.write(bytes('242'))
+            ser.write(bytes('242'))
+
+        except Exception as e:
+            print(str(e))
+
+        self.pada2_altitude.setText(self.pada1_altitude.text())
+
+
+    #getting serial input
+    def check_serial_event(self):
+        self.timeout += 1
+        # print (self.timeout)
+        global wireconnect
+        serial_thread = threading.Timer(1, self.check_serial_event)
+        if ser.is_open == True:
+            serial_thread.start()
+            if ser.in_waiting:
+                eol = b'\n'
+                leneol = len(eol)
+                line = bytearray()
+                # print("mimi",line)
+                while True:
+                    c = ser.read(1)
+                    if c:
+                        line += c
+                        if line[-leneol:] == eol:
+                            break
+                    else:
+                        break
+                    # print("mimi",line)
+                    # print (line)
+                    # print (type(line))
+                line = line.rstrip()
+                distance = line.decode()
+                li = distance.split(',')
+                roll_value = float(li[3])
+                yaw_value = float(li[1])
+                pitch_value = float(li[2])
+
+                # Set the parsed values to the corresponding QLabel elements.
+                self.Roll_data.setText(str(roll_value))
+                self.Yaw_data.setText(str(yaw_value))
+                self.Pitch_data.setText(str(pitch_value))
+
+                print("pipi",li)
+                # #Displaying the data on the text box
+                print(datetime.datetime.now())
+                print("roll = ", li[3])
+                print("yaw = ", li[1])
+                print("pitch = ", li[2])
+                print("velocity = ", str(round((float(li[5])*3.28), 2)))
+                print("altitude = ", str(round((float(li[4])*3.28), 2)))
+                self.Roll_data.setText(li[3])
+                self.Yaw_data.setText(li[1])
+                self.Pitch_data.setText(li[2])
+                self.Air.setText(str(round((float(li[5])*3.28), 2)))
+                self.pada1_altitude.setText(str(round((float(li[4])*3.28), 2)))
+                wireconnect = li[6]
+    #             self.check_serial_event.append(li[0][4:])
+    #             self.check_serial_event.append(li[2][3:])
+    #             self.check_serial_event.append(li[1][3:])
+    # def return_value(self):
+    #     self.Roll_data.setText()
+
+
+
+                #Writing the data to a text file - Data Logging
+                self.myfile = open('myfile.txt', 'a')
+                self.myfile.write(str(datetime.datetime.now()))
+                self.myfile.write(" --> ")
+                self.myfile.write("Roll = ")
+                self.myfile.write(li[3])
+                self.myfile.write("\n")
+                self.myfile.write("Yaw = ")
+                self.myfile.write(li[1])
+                self.myfile.write("\n")
+                self.myfile.write("Pitch = ")
+                self.myfile.write(li[2])
+                self.myfile.write("\n")
+                self.myfile.write("Velocity = ")
+                self.myfile.write(str(round((float(li[5])*3.28), 2)))
+                self.myfile.write("\n")
+                self.myfile.write("PA Altitude = ")
+                self.myfile.write(str(round((float(li[4])*3.28), 2)))
+                self.myfile.write("\n")
+                # self.myfile.write()
+                self.timeout = 0
+                self.myfile.write("\n")
+#                 self.myfile.clear_screen()
+# def clear_screen(self):
+#     os.system('cls')
+
+
+
+
+
+        # if self.timeout >= 10:
+        #     ser.close()
+
+
+app = QApplication([])
+
+window = MainWindow()
+window.showMaximized()
+window.show()
+sys.exit(app.exec_())
